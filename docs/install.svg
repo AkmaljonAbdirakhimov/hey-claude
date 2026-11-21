@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="150" viewBox="0 0 760 150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">
+  <title>Install in the Claude app: plus button, Plugins, Add marketplace, Add plugin</title>
+  <rect width="760" height="150" rx="14" fill="#1f1e1d"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8b8986"/>
+    </marker>
+  </defs>
+  <g fill="#8b8986" font-size="12" letter-spacing="0.5">
+    <text x="30" y="34">1</text><text x="206" y="34">2</text><text x="372" y="34">3</text><text x="632" y="34">4</text>
+  </g>
+
+  <rect x="30" y="46" width="140" height="64" rx="10" fill="#2a2928"/>
+  <circle cx="62" cy="78" r="13" fill="none" stroke="#ededec" stroke-width="1.5"/>
+  <text x="62" y="83" fill="#ededec" text-anchor="middle" font-size="18">+</text>
+  <text x="84" y="76" fill="#ededec">next to the</text>
+  <text x="84" y="94" fill="#ededec">prompt box</text>
+
+  <line x1="174" y1="78" x2="200" y2="78" stroke="#8b8986" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="206" y="46" width="140" height="64" rx="10" fill="#2a2928"/>
+  <text x="276" y="83" fill="#ededec" text-anchor="middle" font-weight="600">Plugins</text>
+
+  <line x1="350" y1="78" x2="366" y2="78" stroke="#8b8986" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="372" y="46" width="230" height="64" rx="10" fill="#2a2928"/>
+  <text x="487" y="72" fill="#ededec" text-anchor="middle" font-weight="600">Add marketplace</text>
+  <rect x="382" y="82" width="210" height="20" rx="4" fill="#1f1e1d"/>
+  <text x="487" y="96" fill="#d97757" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace">AkmaljonAbdirakhimov/hey-claude</text>
+
+  <line x1="606" y1="78" x2="626" y2="78" stroke="#8b8986" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="632" y="46" width="100" height="64" rx="10" fill="#2a2928"/>
+  <text x="682" y="83" fill="#ededec" text-anchor="middle" font-weight="600">Add plugin</text>
+
+  <text x="30" y="135" fill="#8b8986" font-size="13">Then click Allow when macOS asks for Microphone and Speech Recognition.</text>
+</svg>

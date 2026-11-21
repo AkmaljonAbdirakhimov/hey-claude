@@ -1,9 +1,17 @@
 {
   "name": "hey-claude",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Say \"Hey Claude\" to send a spoken prompt; hear a short spoken summary of each answer.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "AkmaljonAbdirakhimov"
+  },
+  "userConfig": {
+    "voice": {
+      "type": "string",
+      "title": "Voice",
+      "description": "The voice that reads answer summaries aloud: a name from the list in System Settings > Accessibility > Spoken Content > System Voice, such as Ava (Premium), Zoe (Premium), Samantha, Daniel or Karen. Premium and Enhanced voices sound best (download them under Manage Voices). Leave it empty, or name a voice that is not installed, for the system default.",
+      "default": "Ava (Premium)"
+    }
   }
 }

@@ -8,5 +8,6 @@
       "name": "hey-claude",
       "source": "./"
     }
-  ]
+  ],
+  "description": "hey-claude: hands-free voice for the Claude app on macOS."
 }

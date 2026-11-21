@@ -8,7 +8,11 @@ It runs inside Claude only: the plugin starts a small listener when a Claude Cod
 session starts and stops it when the session ends. Speech recognition is Apple's,
 on your Mac: your voice never leaves the computer.
 
+![The hey-claude bar above the prompt box: waiting, listening, sending, sent, speaking](docs/bars.svg)
+
 ## Install
+
+![Install: plus button, Plugins, Add marketplace, Add plugin](docs/install.svg)
 
 In the Claude desktop app: click **+** next to the prompt box, then **Plugins**,
 **Add marketplace**, type `AkmaljonAbdirakhimov/hey-claude`, then **Add plugin**.
@@ -30,6 +34,8 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   You can pause while you think; 4 seconds of quiet sends it.
 - The bar above the prompt box shows what is happening: `○ Mic on`, `● Listening…`
   with your words, `↑ Sending…`, `✓ Sent`, then `▶ Claude is saying` with the summary.
+- Changed your mind? Press **Cancel** in the bar, or end with **"cancel"** or
+  **"never mind"**, and nothing is sent.
 - Say **"Hey Claude, stop"**, or type a prompt, to stop the speech.
 - With several chats open, one has the mic: the last chat you typed in. Other chats
   show **Use mic here** to take it.
@@ -43,16 +49,25 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   Uzbek, for one, is not supported.
 - The wake phrase works best said on its own, at the start of what you say. "Hey Claude"
   in the middle of a sentence is ignored on purpose.
-- The summary is spoken in **Ava (Premium)** when that voice is installed
-  (System Settings > Accessibility > Spoken Content > System Voice > Manage Voices),
-  otherwise in your Mac's default voice.
+- The summary is spoken in the voice you pick (below); one that is not installed
+  falls back to your Mac's default voice.
 - Summaries of long answers are written by Claude Haiku, which uses your Claude plan.
 
-## Settings
+## Choose the voice
 
-Edit `hooks/register.tsx` and `listener/main.swift`, then run `./build.sh`:
+The plugin's **Voice** setting picks who reads the summaries. The default is
+**Ava (Premium)**. Claude asks for it when you add the plugin; to change it later, open
+the plugin's settings (`/config` in a terminal session) and type a voice name, such as `Zoe (Premium)`, `Samantha`, `Daniel` or `Karen`. Leave it empty for your
+Mac's default voice.
 
-- Voice: `VOICE` in `hooks/register.tsx`, any name from `say -v '?'`.
+Premium and Enhanced voices sound much better than the built-in ones. Download them in
+System Settings > Accessibility > Spoken Content > System Voice > **Manage Voices**.
+To hear what you have, run `say -v '?'` in Terminal.
+
+## Advanced settings
+
+Edit `listener/main.swift`, then run `./build.sh`:
+
 - Language: the listener takes `--locale ru-RU` (default `en-US`).
 - Timing: `--silence 4` seconds of quiet send the request; `--first-word 8` seconds to
   start talking after "Hey Claude".

@@ -319,6 +319,19 @@ final class Listener {
         }
     }
 
+    /// Drops the request being spoken (the Cancel button).
+    func cancel() {
+        guard isAwake else { return }
+        silenceTimer?.invalidate()
+        kickTimer?.invalidate()
+        isAwake = false
+        committed = ""
+        lastText = ""
+        newTask()
+        emit("cancelled")
+        emit("idle")
+    }
+
     func finish() {
         kickTimer?.invalidate()
         let cmd = command.trimmingCharacters(in: CharacterSet.punctuationCharacters.union(.whitespacesAndNewlines))
@@ -329,9 +342,15 @@ final class Listener {
         newTask()
         if cmd.isEmpty { log("heard the wake phrase but no request") }
         else if cmd.lowercased() == "stop" { emit("stop") }
+        else if isCancel(cmd) { emit("cancelled") }
         else { emit("prompt\t" + cmd.replacingOccurrences(of: "\n", with: " ")) }
         emit("idle")
     }
+}
+
+/// True when a request ends in "cancel", "never mind" or "forget it": drop it.
+func isCancel(_ cmd: String) -> Bool {
+    cmd.lowercased().range(of: "(^|\\s)(cancel|never ?mind|forget it)$", options: .regularExpression) != nil
 }
 
 /// The last few words of `text`, or nil when there are none.
@@ -367,6 +386,10 @@ if args.contains("--selftest") {
     precondition(commandAfterWake(said as String, paused) == "what time is it")
     precondition(lastWords("one two three four five six seven") == "two three four five six seven")
     precondition(lastWords("  ") == nil)
+    precondition(isCancel("what time is it cancel"))
+    precondition(isCancel("open the file never mind"))
+    precondition(isCancel("Cancel"))
+    precondition(!isCancel("cancel my meeting at three"))
     precondition(isNewSegment("what time is it", "and the date") == true)
     precondition(isNewSegment("what", "What's the time") == false)
     precondition(isNewSegment("what time", "What time is it") == false)
@@ -422,5 +445,17 @@ func followOwner() {
     Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in check() }
 }
 var sentBusy = false
+
+// The Cancel button: the plugin touches this file and the request being spoken is dropped.
+let cancelPath = arg("--cancel", "")
+var lastCancel = Date()
+if !cancelPath.isEmpty {
+    Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+        guard let touched = try? FileManager.default.attributesOfItem(atPath: cancelPath)[.modificationDate] as? Date,
+              touched > lastCancel else { return }
+        lastCancel = touched
+        listener.cancel()
+    }
+}
 
 RunLoop.main.run()

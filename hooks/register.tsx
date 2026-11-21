@@ -7,8 +7,6 @@ import type { Mic, Said } from '../types'
 // session and stops it with the session; spoken requests go in as prompts, and
 // each answer's summary is spoken back. macOS only.
 
-// Any name from `say -v '?'`; falls back to the default voice when it is not installed.
-const VOICE = 'Ava (Premium)'
 
 const SYSTEM =
   'Summarize the assistant answer for text-to-speech in one or two short sentences. ' +
@@ -29,10 +27,16 @@ const mic = atom({ plugin: 'hey-claude', key: 'mic' } as const, OFF)
 const NOTHING_SAID: Said = { text: '', speaking: false }
 const said = atom({ plugin: 'hey-claude', key: 'said' } as const, NOTHING_SAID)
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // The voice picked in the plugin's settings; a voice that is not installed falls back
+  // to the system default.
+  const picked = typeof options.voice === 'string' ? options.voice.trim() : 'Ava (Premium)'
+  const VOICE = picked && picked.toLowerCase() !== 'system default' ? picked : undefined
   let speaking: AbortController | undefined
   // Writes this chat's id to the owner file: the mic moves to this chat within a second.
   let claim: () => Promise<void> = async () => {}
+  // Tells the listener to drop the request being spoken.
+  let cancel: () => Promise<void> = async () => {}
   const hush = () => {
     speaking?.abort()
     speaking = undefined
@@ -45,6 +49,10 @@ export const register: Register = on => {
     const id = await $.session.id()
     claim = () =>
       $.process.run(['sh', '-c', 'printf %s "$1" > "$2"', 'hey-claude', id, owner]).then(() => {}, () => {})
+    cancel = async () => {
+      await $.process.run(['touch', `${$.plugin.root}/cancel`]).catch(() => {})
+      await update($, mic, m => (m.mode === 'awake' ? READY : m))
+    }
 
     // Runs for the life of the session; the module unloading kills the child.
     const listen = async (): Promise<void> => {
@@ -52,7 +60,7 @@ export const register: Register = on => {
         let code: number | null = null
         const started = await $.clock.now()
         try {
-          const child = $.process.spawn({ argv: [bin, '--log', `${$.plugin.root}/listener.log`, '--speaking', `${$.plugin.root}/speaking`, '--owner', owner, '--id', id] })
+          const child = $.process.spawn({ argv: [bin, '--log', `${$.plugin.root}/listener.log`, '--speaking', `${$.plugin.root}/speaking`, '--owner', owner, '--id', id, '--cancel', `${$.plugin.root}/cancel`] })
           let buf = ''
           for await (const { stream, text } of child) {
             if (stream === 'stderr') {
@@ -72,6 +80,7 @@ export const register: Register = on => {
               }
               if (line === 'ready' || line === 'idle') await update($, mic, m => (m.mode === 'sending' || m.mode === 'sent' ? m : READY))
               else if (line === 'wake') await update($, mic, () => ({ mode: 'awake', heard: '' }))
+              else if (line === 'cancelled') await update($, mic, () => READY)
               else if (line === 'busy') await update($, mic, () => ({ mode: 'busy', heard: '' }))
               else if (line.startsWith('heard\t')) await update($, mic, () => ({ mode: 'awake', heard: line.slice(6) }))
               else if (line.startsWith('miss\t')) await update($, mic, (m): Mic => (m.mode === 'ready' ? { ...READY, heard: line.slice(5) } : m))
@@ -136,8 +145,19 @@ export const register: Register = on => {
           </Box>
         )
       }
-      case 'awake':
-        return bar(<Text color="error" bold>{'● Listening…'}</Text>, tail(state.heard) || undefined, state.heard ? undefined : '  speak now')
+      case 'awake': {
+        const { Button } = $.ui.resolve(e)
+        return (
+          <Box flexDirection="column">
+            <Box>
+              <Text color="error" bold>{'● Listening…  '}</Text>
+              <Button key="cancel" label="Cancel" onPress={() => cancel()} />
+              <Text dimColor>{state.heard ? '  or say "cancel"' : '  speak now'}</Text>
+            </Box>
+            {state.heard ? <Text maxLines={10}>{tail(state.heard)}</Text> : null}
+          </Box>
+        )
+      }
       default:
         if (last.text)
           return bar(

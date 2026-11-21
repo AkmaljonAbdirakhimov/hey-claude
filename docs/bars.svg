@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="560" viewBox="0 0 760 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+  <title>The hey-claude bar above the prompt box, in each state</title>
+  <rect width="760" height="560" rx="14" fill="#1f1e1d"/>
+
+  <!-- step labels -->
+  <g fill="#8b8986" font-size="12" letter-spacing="0.5">
+    <text x="28" y="40">WAITING</text>
+    <text x="28" y="120">LISTENING</text>
+    <text x="28" y="236">SENDING</text>
+    <text x="28" y="316">SENT</text>
+    <text x="28" y="416">SPEAKING</text>
+  </g>
+
+  <!-- waiting -->
+  <rect x="120" y="20" width="612" height="44" rx="10" fill="#2a2928"/>
+  <text x="140" y="47" fill="#8b8986">○ Mic on: say "Hey Claude"</text>
+
+  <!-- listening -->
+  <rect x="120" y="84" width="612" height="108" rx="10" fill="#2a2928"/>
+  <text x="140" y="113" fill="#e5484d" font-weight="600">● Listening…</text>
+  <rect x="246" y="96" width="70" height="24" rx="6" fill="none" stroke="#5a5856"/>
+  <text x="281" y="113" fill="#ededec" text-anchor="middle" font-size="13">Cancel</text>
+  <text x="330" y="113" fill="#8b8986">or say "cancel"</text>
+  <text x="140" y="143" fill="#ededec">What's the weather like in Tashkent this weekend, and do I need</text>
+  <text x="140" y="167" fill="#ededec">an umbrella on Saturday</text>
+
+  <!-- sending -->
+  <rect x="120" y="212" width="612" height="72" rx="10" fill="#2a2928"/>
+  <text x="140" y="241" fill="#d97757" font-weight="600">↑ Sending to Claude…</text>
+  <text x="140" y="267" fill="#ededec">What's the weather like in Tashkent this weekend, and do I need an…</text>
+
+  <!-- sent -->
+  <rect x="120" y="304" width="612" height="72" rx="10" fill="#2a2928"/>
+  <text x="140" y="333" fill="#d97757" font-weight="600">✓ Sent</text>
+  <text x="200" y="333" fill="#8b8986">· Claude is replying…</text>
+  <text x="140" y="359" fill="#ededec">What's the weather like in Tashkent this weekend, and do I need an…</text>
+
+  <!-- speaking -->
+  <rect x="120" y="396" width="612" height="96" rx="10" fill="#2a2928"/>
+  <text x="140" y="425" fill="#d97757" font-weight="600">▶ Claude is saying</text>
+  <text x="285" y="425" fill="#8b8986">· say "Hey Claude" to reply</text>
+  <text x="140" y="453" fill="#ededec">Sunny on Saturday with a high of 18 degrees, so no umbrella;</text>
+  <text x="140" y="477" fill="#ededec">rain is likely on Sunday afternoon.</text>
+
+  <!-- busy -->
+  <g fill="#8b8986" font-size="12" letter-spacing="0.5"><text x="28" y="536">OTHER CHAT</text></g>
+  <text x="140" y="537" fill="#8b8986">○ Mic is in another chat</text>
+  <rect x="320" y="519" width="108" height="26" rx="6" fill="none" stroke="#5a5856"/>
+  <text x="374" y="537" fill="#ededec" text-anchor="middle" font-size="13">Use mic here</text>
+</svg>
