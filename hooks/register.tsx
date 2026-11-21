@@ -46,10 +46,7 @@ export const register: Register = (on, options) => {
   // to the system default.
   // A pick from the bar's Voice picker, kept in $.store, wins over the setting.
   const setting = typeof options.voice === 'string' ? options.voice.trim() || DEFAULT : 'Ava (Premium)'
-  const voiceName = async ($: { store: { get: (k: string) => Promise<unknown> } }) => {
-    const stored = await $.store.get('voice')
-    return typeof stored === 'string' ? stored : setting
-  }
+  const voiceName = (stored: unknown) => (typeof stored === 'string' ? stored : setting)
   const asVoice = (name: string) => (name.toLowerCase() === DEFAULT ? undefined : name)
   let voices: Promise<string[]> | undefined
   let isWindows = false
@@ -217,7 +214,7 @@ export const register: Register = (on, options) => {
     voices ??= $.process
       .run(isWindows ? ps(SYNTH + '$s.GetInstalledVoices() | % { $_.VoiceInfo.Name + "`t" + $_.VoiceInfo.Culture.Name }') : ['say', '-v', '?'])
       .then(r => parseVoices(r.stdout), () => [])
-    const current = await voiceName($)
+    const current = voiceName(await $.store.get('voice'))
     const list = await voices
     const names = [DEFAULT, ...list.filter(n => n !== current), ...(current === DEFAULT ? [] : [current])]
     const options = [...new Set(names)].sort((a, b) => (a === current ? -1 : b === current ? 1 : 0)).map(n => ({
@@ -302,7 +299,7 @@ export const register: Register = (on, options) => {
       return out
     }
 
-    const VOICE = asVoice(await voiceName($))
+    const VOICE = asVoice(voiceName(await $.store.get('voice')))
     hush()
     const ctl = new AbortController()
     speaking = ctl
