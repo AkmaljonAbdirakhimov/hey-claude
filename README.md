@@ -34,6 +34,7 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   You can pause while you think; 4 seconds of quiet sends it.
 - The bar above the prompt box shows what is happening: `○ Mic on`, `● Listening…`
   with your words, `↑ Sending…`, `✓ Sent`, then `▶ Claude is saying` with the summary.
+  **⚙ Voice** at its right end picks the voice.
 - Changed your mind? Press **Cancel** in the bar, or end with **"cancel"** or
   **"never mind"**, and nothing is sent.
 - Say **"Hey Claude, stop"**, or type a prompt, to stop the speech.
@@ -55,14 +56,16 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
 
 ## Choose the voice
 
-The plugin's **Voice** setting picks who reads the summaries. The default is
-**Ava (Premium)**. Claude asks for it when you add the plugin; to change it later, open
-the plugin's settings (`/config` in a terminal session) and type a voice name, such as `Zoe (Premium)`, `Samantha`, `Daniel` or `Karen`. Leave it empty for your
-Mac's default voice.
+Click **⚙ Voice** at the right end of the bar. A list of the English voices on your Mac
+opens; pick one and it says hello in that voice. The choice is saved for every chat.
+Press **Done** or Esc to close the list.
 
-Premium and Enhanced voices sound much better than the built-in ones. Download them in
-System Settings > Accessibility > Spoken Content > System Voice > **Manage Voices**.
-To hear what you have, run `say -v '?'` in Terminal.
+The default is **Ava (Premium)**, from the plugin's **Voice** setting (`/config` in a
+terminal session). A voice picked in the bar wins over that setting.
+
+Premium and Enhanced voices sound much better than the built-in ones and are listed
+first. Download them in System Settings > Accessibility > Spoken Content > System Voice >
+**Manage Voices**, then open the list again.
 
 ## Advanced settings
 

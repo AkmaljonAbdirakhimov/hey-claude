@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { Register, RenderChildren } from 'claude-code'
 
 import type { Mic, Said } from '../types'
 
@@ -26,12 +26,31 @@ const READY: Mic = { mode: 'ready', heard: '' }
 const mic = atom({ plugin: 'hey-claude', key: 'mic' } as const, OFF)
 const NOTHING_SAID: Said = { text: '', speaking: false }
 const said = atom({ plugin: 'hey-claude', key: 'said' } as const, NOTHING_SAID)
+const VOICES = 'hey-claude-voices'
+const DEFAULT = 'system default'
+
+// English voices installed on this Mac, from `say -v '?'`: Premium and Enhanced first.
+const parseVoices = (out: string) => {
+  const names = new Set<string>()
+  for (const line of out.split('\n')) {
+    const m = /^(.+?)\s+en_[A-Z]+\s+#/.exec(line)
+    if (m?.[1]) names.add(m[1].trim())
+  }
+  const good = (n: string) => (/\((Premium|Enhanced)\)/.test(n) ? 0 : 1)
+  return [...names].sort((a, b) => good(a) - good(b) || a.localeCompare(b))
+}
 
 export const register: Register = (on, options) => {
   // The voice picked in the plugin's settings; a voice that is not installed falls back
   // to the system default.
-  const picked = typeof options.voice === 'string' ? options.voice.trim() : 'Ava (Premium)'
-  const VOICE = picked && picked.toLowerCase() !== 'system default' ? picked : undefined
+  // A pick from the bar's Voice picker, kept in $.store, wins over the setting.
+  const setting = typeof options.voice === 'string' ? options.voice.trim() || DEFAULT : 'Ava (Premium)'
+  const voiceName = async ($: { store: { get: (k: string) => Promise<unknown> } }) => {
+    const stored = await $.store.get('voice')
+    return typeof stored === 'string' ? stored : setting
+  }
+  const asVoice = (name: string) => (name.toLowerCase() === DEFAULT ? undefined : name)
+  let voices: Promise<string[]> | undefined
   let speaking: AbortController | undefined
   // Writes this chat's id to the owner file: the mic moves to this chat within a second.
   let claim: () => Promise<void> = async () => {}
@@ -118,14 +137,25 @@ export const register: Register = (on, options) => {
     const state = await read($, mic)
     if (state.mode === 'off' || e.props.hasSurvey) return next(e)
     const last = await read($, said)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    // Right end of the status row: opens the voice picker.
+    const gear = (
+      <Button
+        key="voice"
+        label="⚙ Voice"
+        onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 8 })}
+      />
+    )
+    const row = (...items: RenderChildren[]) => (
+      <Box justifyContent="space-between">
+        <Box>{items}</Box>
+        {gear}
+      </Box>
+    )
     // Status on its own row, the words under it, so long text wraps instead of squeezing the label.
     const bar = (label: ReturnType<typeof Text>, words?: string, note?: string) => (
       <Box flexDirection="column">
-        <Box>
-          {label}
-          {note ? <Text dimColor>{note}</Text> : null}
-        </Box>
+        {row(label, note ? <Text dimColor>{note}</Text> : null)}
         {words ? <Text maxLines={10}>{words}</Text> : null}
       </Box>
     )
@@ -136,24 +166,19 @@ export const register: Register = (on, options) => {
         return bar(<Text color="claude" bold>{'✓ Sent'}</Text>, state.heard, '  · Claude is replying…')
       case 'sending':
         return bar(<Text color="claude" bold>{'↑ Sending to Claude…'}</Text>, state.heard)
-      case 'busy': {
-        const { Button } = $.ui.resolve(e)
-        return (
-          <Box>
-            <Text dimColor>{'○ Mic is in another chat  '}</Text>
-            <Button key="claim" label="Use mic here" onPress={() => claim()} />
-          </Box>
+      case 'busy':
+        return row(
+          <Text dimColor>{'○ Mic is in another chat  '}</Text>,
+          <Button key="claim" label="Use mic here" onPress={() => claim()} />,
         )
-      }
       case 'awake': {
-        const { Button } = $.ui.resolve(e)
         return (
           <Box flexDirection="column">
-            <Box>
-              <Text color="error" bold>{'● Listening…  '}</Text>
-              <Button key="cancel" label="Cancel" onPress={() => cancel()} />
-              <Text dimColor>{state.heard ? '  or say "cancel"' : '  speak now'}</Text>
-            </Box>
+            {row(
+              <Text color="error" bold>{'● Listening…  '}</Text>,
+              <Button key="cancel" label="Cancel" onPress={() => cancel()} />,
+              <Text dimColor>{state.heard ? '  or say "cancel"' : '  speak now'}</Text>,
+            )}
             {state.heard ? <Text maxLines={10}>{tail(state.heard)}</Text> : null}
           </Box>
         )
@@ -167,6 +192,37 @@ export const register: Register = (on, options) => {
           )
         return bar(<Text dimColor>{'○ Mic on: say "Hey Claude"'}</Text>, undefined, state.heard ? `  · last heard "${tail(state.heard)}"` : undefined)
     }
+  })
+
+  // The voice picker: every English voice on this Mac. A pick is saved for every chat
+  // and plays a short sample.
+  on('ui.render', { component: 'Pane', requestId: VOICES }, async ($, e) => {
+    const { Box, Text, Select, Button } = $.ui.resolve(e)
+    voices ??= $.process.run(['say', '-v', '?']).then(r => parseVoices(r.stdout), () => [])
+    const current = await voiceName($)
+    const list = await voices
+    const names = [DEFAULT, ...list.filter(n => n !== current), ...(current === DEFAULT ? [] : [current])]
+    const options = [...new Set(names)].sort((a, b) => (a === current ? -1 : b === current ? 1 : 0)).map(n => ({
+      value: n,
+      label: n === DEFAULT ? 'System default' : n,
+    }))
+    return (
+      <Box flexDirection="column">
+        <Select
+          key="pick"
+          label="Voice: "
+          options={options}
+          value={current}
+          autoFocus
+          onSelect={async name => {
+            await $.store.set('voice', name)
+            await $.audio.speak(`Hi, I'm ${name === DEFAULT ? 'your Mac' : name.replace(/\s*\(.*\)/, '')}.`, { voice: asVoice(name) }).catch(() => {})
+          }}
+        />
+        <Text dimColor>{'More voices: System Settings > Accessibility > Spoken Content > Manage Voices.'}</Text>
+        <Button key="done" label="Done" onPress={() => void $.ui.close({ id: VOICES })} />
+      </Box>
+    )
   })
 
   // The prompt's row is stored: sent. The desktop app shows it only once the reply
@@ -228,6 +284,7 @@ export const register: Register = (on, options) => {
       return out
     }
 
+    const VOICE = asVoice(await voiceName($))
     hush()
     const ctl = new AbortController()
     speaking = ctl
