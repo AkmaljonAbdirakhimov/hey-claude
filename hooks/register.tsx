@@ -5,7 +5,7 @@ import type { Mic, Said } from '../types'
 
 // hey-claude: runs only inside Claude. The plugin starts the listener with the
 // session and stops it with the session; spoken requests go in as prompts, and
-// each answer's summary is spoken back. macOS only.
+// each answer's summary is spoken back. macOS and Windows.
 
 
 const SYSTEM =
@@ -29,11 +29,12 @@ const said = atom({ plugin: 'hey-claude', key: 'said' } as const, NOTHING_SAID)
 const VOICES = 'hey-claude-voices'
 const DEFAULT = 'system default'
 
-// English voices installed on this Mac, from `say -v '?'`: Premium and Enhanced first.
+// English voices installed: macOS `say -v '?'` lines, or Windows "name<TAB>en-US" lines.
+// Premium and Enhanced first.
 const parseVoices = (out: string) => {
   const names = new Set<string>()
-  for (const line of out.split('\n')) {
-    const m = /^(.+?)\s+en_[A-Z]+\s+#/.exec(line)
+  for (const line of out.split(/\r?\n/)) {
+    const m = /^(.+?)\s+en_[A-Z]+\s+#/.exec(line) ?? /^(.+?)\ten-[A-Z]+$/.exec(line)
     if (m?.[1]) names.add(m[1].trim())
   }
   const good = (n: string) => (/\((Premium|Enhanced)\)/.test(n) ? 0 : 1)
@@ -51,6 +52,10 @@ export const register: Register = (on, options) => {
   }
   const asVoice = (name: string) => (name.toLowerCase() === DEFAULT ? undefined : name)
   let voices: Promise<string[]> | undefined
+  let isWindows = false
+  // Windows PowerShell 5.1, on every Windows 10 and 11, with System.Speech loaded.
+  const ps = (script: string) => ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script]
+  const SYNTH = 'Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; '
   let speaking: AbortController | undefined
   // Writes this chat's id to the owner file: the mic moves to this chat within a second.
   let claim: () => Promise<void> = async () => {}
@@ -63,13 +68,24 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     const out = await next(e)
-    const bin = `${$.plugin.root}/bin/hey-claude`
-    const owner = `${$.plugin.root}/mic.owner`
+    const { platform } = await $.session.info()
+    isWindows = platform === 'windows'
+    if (platform !== 'macos' && !isWindows) {
+      $.ui.log(`hey-claude: works on macOS and Windows only, not ${platform ?? 'this system'}.`)
+      return out
+    }
+    const root = $.plugin.root
+    const owner = `${root}/mic.owner`
     const id = await $.session.id()
-    claim = () =>
-      $.process.run(['sh', '-c', 'printf %s "$1" > "$2"', 'hey-claude', id, owner]).then(() => {}, () => {})
+    const files = ['--log', `${root}/listener.log`, '--speaking', `${root}/speaking`, '--owner', owner, '--id', id, '--cancel', `${root}/cancel`]
+    // Same protocol on both: the Swift binary on macOS, a PowerShell script on Windows.
+    const argv = isWindows
+      ? ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', `${root}/listener/windows.ps1`,
+         ...files.map(a => a.replace(/^--(\w)/, (_, c: string) => '-' + c.toUpperCase()))]
+      : [`${root}/bin/hey-claude`, ...files]
+    claim = () => $.fs.write(owner, id).catch(() => {})
     cancel = async () => {
-      await $.process.run(['touch', `${$.plugin.root}/cancel`]).catch(() => {})
+      await $.fs.write(`${root}/cancel`, String(Date.now())).catch(() => {})
       await update($, mic, m => (m.mode === 'awake' ? READY : m))
     }
 
@@ -79,7 +95,7 @@ export const register: Register = (on, options) => {
         let code: number | null = null
         const started = await $.clock.now()
         try {
-          const child = $.process.spawn({ argv: [bin, '--log', `${$.plugin.root}/listener.log`, '--speaking', `${$.plugin.root}/speaking`, '--owner', owner, '--id', id, '--cancel', `${$.plugin.root}/cancel`] })
+          const child = $.process.spawn({ argv })
           let buf = ''
           for await (const { stream, text } of child) {
             if (stream === 'stderr') {
@@ -198,7 +214,9 @@ export const register: Register = (on, options) => {
   // and plays a short sample.
   on('ui.render', { component: 'Pane', requestId: VOICES }, async ($, e) => {
     const { Box, Text, Select, Button } = $.ui.resolve(e)
-    voices ??= $.process.run(['say', '-v', '?']).then(r => parseVoices(r.stdout), () => [])
+    voices ??= $.process
+      .run(isWindows ? ps(SYNTH + '$s.GetInstalledVoices() | % { $_.VoiceInfo.Name + "`t" + $_.VoiceInfo.Culture.Name }') : ['say', '-v', '?'])
+      .then(r => parseVoices(r.stdout), () => [])
     const current = await voiceName($)
     const list = await voices
     const names = [DEFAULT, ...list.filter(n => n !== current), ...(current === DEFAULT ? [] : [current])]
@@ -291,10 +309,9 @@ export const register: Register = (on, options) => {
     $.ui.log(`hey-claude: speaking ${summary.length} chars`, { to: 'debug' })
     await update($, said, () => ({ text: summary, speaking: true }))
     // The listener reads this flag so Ava saying "Claude" never wakes it.
-    const flag = (v: string) =>
-      $.process.run(['sh', '-c', 'printf %s "$1" > "$2"', 'hey-claude', v, `${$.plugin.root}/speaking`]).catch(() => {})
+    const flag = (v: string) => $.fs.write(`${$.plugin.root}/speaking`, v).catch(() => {})
     await flag('1')
-    // Ava (Premium) when installed, else the Mac's default voice, else macOS `say`.
+    // The picked voice when installed, else the default voice, else `say` or Windows' synthesizer.
     const speak = async () => {
       try {
         await $.audio.speak(summary, { voice: VOICE, signal: ctl.signal })
@@ -304,9 +321,13 @@ export const register: Register = (on, options) => {
           await $.audio.speak(summary, { signal: ctl.signal })
         } catch (err) {
           if (ctl.signal.aborted) return
-          $.ui.log(`hey-claude: built-in speech failed (${String(err)}), using say`)
+          $.ui.log(`hey-claude: built-in speech failed (${String(err)}), using the system's`, { to: 'debug' })
           await $.process
-            .run(['sh', '-c', 'say -- "$1" >/dev/null 2>&1', 'hey-claude', summary])
+            .run(isWindows ? ps(SYNTH + 'if ($env:HC_VOICE) { try { $s.SelectVoice($env:HC_VOICE) } catch {} }; $s.Speak([Console]::In.ReadToEnd())') : ['say', '-f', '-'], {
+              stdin: summary,
+              env: { HC_VOICE: VOICE ?? '' },
+              timeoutMs: 120_000,
+            })
             .catch(e2 => $.ui.log(`hey-claude: say failed: ${String(e2)}`))
         }
       }

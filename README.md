@@ -1,12 +1,12 @@
 # hey-claude
 
-Talk to Claude hands-free in the Claude desktop app on macOS. Say **"Hey Claude"**,
+Talk to Claude hands-free in the Claude desktop app on macOS and Windows. Say **"Hey Claude"**,
 ask your question, and Claude answers. A short spoken summary of the answer is read
 aloud and shown above the prompt box.
 
 It runs inside Claude only: the plugin starts a small listener when a Claude Code
-session starts and stops it when the session ends. Speech recognition is Apple's,
-on your Mac: your voice never leaves the computer.
+session starts and stops it when the session ends. Speech recognition runs on your
+computer (Apple's on macOS, Windows' own on Windows): your voice never leaves it.
 
 ![The hey-claude bar above the prompt box: waiting, listening, sending, sent, speaking](docs/bars.svg)
 
@@ -25,7 +25,7 @@ Or, in a Claude Code terminal session:
 
 Answer `y` to add the marketplace, then pick a scope (user scope puts it in every chat).
 
-The first time it runs, macOS asks for **Microphone** and **Speech Recognition**
+On macOS, the first time it runs, macOS asks for **Microphone** and **Speech Recognition**
 access. Click **Allow** for both. Nothing needs to be built or configured.
 
 ## Use
@@ -43,7 +43,7 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
 
 ## Requirements and limits
 
-- macOS 13 or later, Apple Silicon or Intel.
+- macOS 13 or later (Apple Silicon or Intel), or Windows 10 or 11.
 - The Claude desktop app, or Claude Code in a terminal, recent enough for plugin
   hooks modules (tested with Claude Code 2.1.326).
 - English only by default. Apple's on-device recognizer must support the language;
@@ -51,12 +51,12 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
 - The wake phrase works best said on its own, at the start of what you say. "Hey Claude"
   in the middle of a sentence is ignored on purpose.
 - The summary is spoken in the voice you pick (below); one that is not installed
-  falls back to your Mac's default voice.
+  falls back to the system's default voice.
 - Summaries of long answers are written by Claude Haiku, which uses your Claude plan.
 
 ## Choose the voice
 
-Click **⚙ Voice** at the right end of the bar. A list of the English voices on your Mac
+Click **⚙ Voice** at the right end of the bar. A list of the English voices on your computer
 opens; pick one and it says hello in that voice. The choice is saved for every chat.
 Press **Done** or Esc to close the list.
 
@@ -67,7 +67,24 @@ Premium and Enhanced voices sound much better than the built-in ones and are lis
 first. Download them in System Settings > Accessibility > Spoken Content > System Voice >
 **Manage Voices**, then open the list again.
 
-## Advanced settings
+## Windows
+
+Windows support is new and has not been tested on a Windows PC yet. Reports are welcome.
+
+- It uses Windows' built-in offline speech recognizer and voices, through Windows
+  PowerShell. Nothing to install or build.
+- Microphone: Settings > Privacy & security > Microphone > turn on **Let desktop apps
+  access your microphone**.
+- Speech: an English (United States) speech pack must be installed: Settings > Time &
+  language > Speech, or Language > English (United States) > Options > Speech.
+- Recognition is less accurate than on macOS. Speak clearly, and say "Hey Claude"
+  as its own short phrase.
+- Voices are the Windows desktop voices, such as Microsoft David, Zira and Mark. The
+  newer Natural voices of Narrator are not available to apps.
+- The listener is `listener/windows.ps1`. Its settings are parameters: `-Locale`,
+  `-Silence`, `-FirstWord` and `-MinConfidence` (how sure it must be of the wake phrase).
+
+## Advanced settings (macOS)
 
 Edit `listener/main.swift`, then run `./build.sh`:
 
@@ -85,7 +102,7 @@ Edit `listener/main.swift`, then run `./build.sh`:
   has the mic. It starts empty each time that chat takes the mic and never leaves your
   computer. Delete the `--log` argument in `hooks/register.tsx` to turn it off.
 
-## Build
+## Build (macOS)
 
 ```bash
 ./build.sh
