@@ -162,11 +162,10 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     // Right end of the status row: the settings icon opens the voice picker.
     const gear = (
-      <Button
-        key="voice"
-        label="⚙"
-        onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 12 })}
-      />
+      <Button key="voice" onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 12 })}>
+        {/* The emoji form of the gear: the text glyph draws tiny, and a Button ignores its Text's size. */}
+        <Text size="title">{'⚙\uFE0F'}</Text>
+      </Button>
     )
     // The status and its controls on the left, the Voice button at the right end; spacing
     // comes from the Boxes' gaps, not from spaces in the text.

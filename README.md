@@ -34,7 +34,7 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   You can pause while you think; 4 seconds of quiet sends it.
 - The bar above the prompt box shows what is happening: `○ Mic on`, `● Listening…`
   with your words, `↑ Sending…`, `✓ Sent`, then `▶ Claude is saying` with the summary.
-  The **⚙** at its right end picks the voice.
+  The **⚙️** at its right end picks the voice.
 - Changed your mind? Press **Cancel** in the bar, or end with **"cancel"** or
   **"never mind"**, and nothing is sent.
 - Say **"Hey Claude, stop"**, or type a prompt, to stop the speech.
@@ -58,7 +58,7 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
 
 ## Choose the voice
 
-Click **⚙** at the right end of the bar. A list of the English voices on your computer
+Click **⚙️** at the right end of the bar. A list of the English voices on your computer
 opens; pick one and it says hello in that voice. The choice is saved for every chat.
 Press **Done** or Esc to close the list.
 
