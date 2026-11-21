@@ -52,7 +52,7 @@ export const register: Register = (on, options) => {
   // The voice picked in the plugin's settings; a voice that is not installed falls back
   // to the system default.
   // A pick from the bar's Voice picker, kept in $.store, wins over the setting.
-  const setting = typeof options.voice === 'string' ? options.voice.trim() || DEFAULT : 'Ava (Premium)'
+  const setting = typeof options.voice === 'string' ? options.voice.trim() || DEFAULT : DEFAULT
   const voiceName = (stored: unknown) => (typeof stored === 'string' ? stored : setting)
   const asVoice = (name: string) => (name.toLowerCase() === DEFAULT ? undefined : name)
   let voices: Promise<string[]> | undefined
@@ -160,11 +160,11 @@ export const register: Register = (on, options) => {
     if (state.mode === 'off' || e.props.hasSurvey) return next(e)
     const last = await read($, said)
     const { Box, Text, Button } = $.ui.resolve(e)
-    // Right end of the status row: opens the voice picker.
+    // Right end of the status row: the settings icon opens the voice picker.
     const gear = (
       <Button
         key="voice"
-        label="⚙ Voice"
+        label="⚙"
         onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 12 })}
       />
     )
@@ -319,7 +319,7 @@ export const register: Register = (on, options) => {
       summary = r.isAnswered && r.text.trim() ? plain(r.text) : ends.slice(0, 400)
     }
 
-    // Ava saying "Hey Claude" would wake the mic and send her own words back.
+    // The voice saying "Hey Claude" would wake the mic and send her own words back.
     summary = summary.replace(/\b(hey|hi|okay|ok|hello)\W+claude\b/gi, 'the wake phrase')
 
     // You are speaking a new request: talking over it would put the summary's words into
@@ -335,7 +335,7 @@ export const register: Register = (on, options) => {
     speaking = ctl
     $.ui.log(`hey-claude: speaking ${summary.length} chars`, { to: 'debug' })
     await update($, said, () => ({ text: summary, speaking: true }))
-    // The listener reads this flag so Ava saying "Claude" never wakes it.
+    // The listener reads this flag so the voice saying "Claude" never wakes it.
     const flag = (v: string) => $.fs.write(`${$.plugin.root}/speaking`, v).catch(() => {})
     await flag('1')
     // The picked voice when installed, else the default voice, else `say` or Windows' synthesizer.
