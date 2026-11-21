@@ -1,0 +1,77 @@
+# hey-claude
+
+Talk to Claude hands-free in the Claude desktop app on macOS. Say **"Hey Claude"**,
+ask your question, and Claude answers. A short spoken summary of the answer is read
+aloud and shown above the prompt box.
+
+It runs inside Claude only: the plugin starts a small listener when a Claude Code
+session starts and stops it when the session ends. Speech recognition is Apple's,
+on your Mac: your voice never leaves the computer.
+
+## Install
+
+In the Claude desktop app: click **+** next to the prompt box, then **Plugins**,
+**Add marketplace**, type `AkmaljonAbdirakhimov/hey-claude`, then **Add plugin**.
+
+Or, in a Claude Code terminal session:
+
+```
+/plugin install hey-claude --marketplace AkmaljonAbdirakhimov/hey-claude
+```
+
+Answer `y` to add the marketplace, then pick a scope (user scope puts it in every chat).
+
+The first time it runs, macOS asks for **Microphone** and **Speech Recognition**
+access. Click **Allow** for both. Nothing needs to be built or configured.
+
+## Use
+
+- Say **"Hey Claude"** (or just **"Claude"** at the start of a sentence), then your request.
+  You can pause while you think; 4 seconds of quiet sends it.
+- The bar above the prompt box shows what is happening: `○ Mic on`, `● Listening…`
+  with your words, `↑ Sending…`, `✓ Sent`, then `▶ Claude is saying` with the summary.
+- Say **"Hey Claude, stop"**, or type a prompt, to stop the speech.
+- With several chats open, one has the mic: the last chat you typed in. Other chats
+  show **Use mic here** to take it.
+
+## Requirements and limits
+
+- macOS 13 or later, Apple Silicon or Intel.
+- The Claude desktop app, or Claude Code in a terminal, recent enough for plugin
+  hooks modules (tested with Claude Code 2.1.326).
+- English only by default. Apple's on-device recognizer must support the language;
+  Uzbek, for one, is not supported.
+- The wake phrase works best said on its own, at the start of what you say. "Hey Claude"
+  in the middle of a sentence is ignored on purpose.
+- The summary is spoken in **Ava (Premium)** when that voice is installed
+  (System Settings > Accessibility > Spoken Content > System Voice > Manage Voices),
+  otherwise in your Mac's default voice.
+- Summaries of long answers are written by Claude Haiku, which uses your Claude plan.
+
+## Settings
+
+Edit `hooks/register.tsx` and `listener/main.swift`, then run `./build.sh`:
+
+- Voice: `VOICE` in `hooks/register.tsx`, any name from `say -v '?'`.
+- Language: the listener takes `--locale ru-RU` (default `en-US`).
+- Timing: `--silence 4` seconds of quiet send the request; `--first-word 8` seconds to
+  start talking after "Hey Claude".
+- Wake phrase: a greeting (`--greetings`) followed by a name (`--names`), or a name alone
+  at the start (`--bare-names`). The defaults include common mishearings.
+
+## Troubleshooting
+
+- Nothing happens: check System Settings > Privacy & Security > Microphone and Speech
+  Recognition, and allow `hey-claude` (or Claude).
+- `listener.log` in the plugin folder traces what the recognizer heard in the chat that
+  has the mic. It starts empty each time that chat takes the mic and never leaves your
+  computer. Delete the `--log` argument in `hooks/register.tsx` to turn it off.
+
+## Build
+
+```bash
+./build.sh
+```
+
+Compiles `listener/main.swift` into a universal `bin/hey-claude` (Apple Silicon and Intel)
+and runs its self-test. Needs the Xcode command line tools.

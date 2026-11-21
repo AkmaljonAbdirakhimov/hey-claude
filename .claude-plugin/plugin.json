@@ -1,0 +1,9 @@
+{
+  "name": "hey-claude",
+  "version": "0.11.0",
+  "description": "Say \"Hey Claude\" to send a spoken prompt; hear a short spoken summary of each answer.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "AkmaljonAbdirakhimov"
+  }
+}
