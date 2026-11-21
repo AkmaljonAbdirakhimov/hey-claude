@@ -8,10 +8,17 @@ import type { Mic, Said } from '../types'
 // each answer's summary is spoken back. macOS and Windows.
 
 
-const SYSTEM =
-  'Summarize the assistant answer for text-to-speech in one or two short sentences. ' +
-  'Plain spoken text only: no markdown, no code, no lists, no file paths. ' +
-  'Use the same language as the answer.'
+// The spoken summary: result, the detail that matters, then what happens next.
+const SYSTEM = [
+  "You turn an assistant's answer into a short spoken update for the person who asked. They are listening, not reading.",
+  'Write at most three short sentences, about 50 words, in this order:',
+  '1. The result, first: what happened, or the answer itself.',
+  '2. The one detail that matters most: a catch, a cause, a number, or what is not done or not checked yet.',
+  '3. What happens next. If the answer asks the person a question or needs their decision, say that question word for word. ' +
+    'Otherwise, if they must do something, say what. Otherwise leave this part out.',
+  'Talk like a colleague: "I" is the assistant, "you" is the person. Plain spoken text: no markdown, lists, code, file paths, URLs or symbols.',
+  "Use the answer's language. Say nothing the answer does not say.",
+].join('\n')
 
 const plain = (s: string) =>
   s
@@ -49,6 +56,8 @@ export const register: Register = (on, options) => {
   const voiceName = (stored: unknown) => (typeof stored === 'string' ? stored : setting)
   const asVoice = (name: string) => (name.toLowerCase() === DEFAULT ? undefined : name)
   let voices: Promise<string[]> | undefined
+  // The request the current answer replies to, so the summary knows what mattered.
+  let ask = ''
   let isWindows = false
   // Windows PowerShell 5.1, on every Windows 10 and 11, with System.Speech loaded.
   const ps = (script: string) => ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script]
@@ -156,54 +165,57 @@ export const register: Register = (on, options) => {
       <Button
         key="voice"
         label="⚙ Voice"
-        onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 8 })}
+        onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 12 })}
       />
     )
+    // The status and its controls on the left, the Voice button at the right end; spacing
+    // comes from the Boxes' gaps, not from spaces in the text.
     const row = (...items: RenderChildren[]) => (
-      <Box justifyContent="space-between">
-        <Box>{items}</Box>
+      <Box justifyContent="space-between" alignItems="center" columnGap="lg">
+        <Box alignItems="center" columnGap="md" flexShrink={1} flexWrap="wrap">
+          {items}
+        </Box>
         {gear}
       </Box>
     )
     // Status on its own row, the words under it, so long text wraps instead of squeezing the label.
-    const bar = (label: ReturnType<typeof Text>, words?: string, note?: string) => (
-      <Box flexDirection="column">
-        {row(label, note ? <Text dimColor>{note}</Text> : null)}
+    const bar = (head: RenderChildren, words?: string) => (
+      <Box flexDirection="column" rowGap="sm" paddingY="xs">
+        {head}
         {words ? <Text maxLines={10}>{words}</Text> : null}
       </Box>
     )
+    const status = (label: ReturnType<typeof Text>, note?: string) => row(label, note ? <Text dimColor>{note}</Text> : null)
     // While listening, the newest words matter: keep the end of a long request.
     const tail = (t: string) => (t.length > 1200 ? '…' + t.slice(-1200) : t)
     switch (state.mode) {
       case 'sent':
-        return bar(<Text color="claude" bold>{'✓ Sent'}</Text>, state.heard, '  · Claude is replying…')
+        return bar(status(<Text color="claude" bold>{'✓ Sent'}</Text>, 'Claude is replying…'), state.heard)
       case 'sending':
-        return bar(<Text color="claude" bold>{'↑ Sending to Claude…'}</Text>, state.heard)
+        return bar(status(<Text color="claude" bold>{'↑ Sending to Claude…'}</Text>), state.heard)
       case 'busy':
-        return row(
-          <Text dimColor>{'○ Mic is in another chat  '}</Text>,
-          <Button key="claim" label="Use mic here" onPress={() => claim()} />,
+        return bar(
+          row(
+            <Text dimColor>{'○ Mic is in another chat'}</Text>,
+            <Button key="claim" label="Use mic here" onPress={() => claim()} />,
+          ),
         )
-      case 'awake': {
-        return (
-          <Box flexDirection="column">
-            {row(
-              <Text color="error" bold>{'● Listening…  '}</Text>,
-              <Button key="cancel" label="Cancel" onPress={() => cancel()} />,
-              <Text dimColor>{state.heard ? '  or say "cancel"' : '  speak now'}</Text>,
-            )}
-            {state.heard ? <Text maxLines={10}>{tail(state.heard)}</Text> : null}
-          </Box>
+      case 'awake':
+        return bar(
+          row(
+            <Text color="error" bold>{'● Listening…'}</Text>,
+            <Button key="cancel" label="Cancel" onPress={() => cancel()} />,
+            <Text dimColor>{state.heard ? 'or say "cancel"' : 'speak now'}</Text>,
+          ),
+          state.heard ? tail(state.heard) : undefined,
         )
-      }
       default:
         if (last.text)
           return bar(
-            <Text color="claude" bold>{last.speaking ? '▶ Claude is saying' : 'Claude said'}</Text>,
+            status(<Text color="claude" bold>{last.speaking ? '▶ Claude is saying' : 'Claude said'}</Text>, 'say "Hey Claude" to reply'),
             last.text,
-            '  · say "Hey Claude" to reply',
           )
-        return bar(<Text dimColor>{'○ Mic on: say "Hey Claude"'}</Text>, undefined, state.heard ? `  · last heard "${tail(state.heard)}"` : undefined)
+        return bar(status(<Text dimColor>{'○ Mic on: say "Hey Claude"'}</Text>, state.heard ? `last heard "${tail(state.heard)}"` : undefined))
     }
   })
 
@@ -221,21 +233,31 @@ export const register: Register = (on, options) => {
       value: n,
       label: n === DEFAULT ? 'System default' : n,
     }))
+    const more = isWindows
+      ? 'More voices: Settings > Time & language > Speech > Manage voices.'
+      : 'More voices: System Settings > Accessibility > Spoken Content > System Voice > Manage Voices.'
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" padding="md" rowGap="md">
+        <Box flexDirection="column" rowGap="xs">
+          <Text bold>{'Voice for spoken answers'}</Text>
+          <Text dimColor>{'Pick a voice to hear it. The choice is saved for every chat.'}</Text>
+        </Box>
         <Select
           key="pick"
-          label="Voice: "
+          label="Voice"
           options={options}
           value={current}
           autoFocus
           onSelect={async name => {
             await $.store.set('voice', name)
-            await $.audio.speak(`Hi, I'm ${name === DEFAULT ? 'your Mac' : name.replace(/\s*\(.*\)/, '')}.`, { voice: asVoice(name) }).catch(() => {})
+            const who = name === DEFAULT ? 'the default voice' : name.replace(/\s*\(.*\)/, '')
+            await $.audio.speak(`Hi, I'm ${who}.`, { voice: asVoice(name) }).catch(() => {})
           }}
         />
-        <Text dimColor>{'More voices: System Settings > Accessibility > Spoken Content > Manage Voices.'}</Text>
-        <Button key="done" label="Done" onPress={() => void $.ui.close({ id: VOICES })} />
+        <Text dimColor>{more}</Text>
+        <Box justifyContent="flex-end">
+          <Button key="done" label="Done" onPress={() => void $.ui.close({ id: VOICES })} />
+        </Box>
       </Box>
     )
   })
@@ -269,24 +291,32 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined && e.text.trim()) ask = e.text.trim()
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const out = await next(e)
     if (e.agentId !== undefined || e.reason !== 'answer') return out
     const answer = plain(e.answer)
     if (!answer) return out
 
+    // A one-line answer ("It's 3 PM.") is read as it is.
     let summary = answer
-    if (answer.length > 240) {
+    if (answer.length > 120) {
       const r = await $.model.complete({
         model: 'haiku',
         system: SYSTEM,
-        prompt: e.answer.slice(0, 20000),
-        maxTokens: 150,
+        prompt: `The request:\n${ask.slice(0, 2000) || '(not known)'}\n\nThe answer:\n${e.answer.slice(0, 20000)}`,
+        maxTokens: 220,
         effort: 'low',
-        timeoutMs: 10000,
+        timeoutMs: 12000,
       })
-      // Fallback: the answer's first sentence.
-      summary = r.isAnswered && r.text.trim() ? plain(r.text) : (answer.split(/(?<=[.!?])\s/)[0] ?? answer).slice(0, 240)
+      // Fallback: the first sentence for the result and the last for what comes next.
+      const sentences = answer.split(/(?<=[.!?])\s/)
+      const ends = sentences.length > 1 ? `${sentences[0]} ${sentences[sentences.length - 1]}` : answer
+      summary = r.isAnswered && r.text.trim() ? plain(r.text) : ends.slice(0, 400)
     }
 
     // Ava saying "Hey Claude" would wake the mic and send her own words back.

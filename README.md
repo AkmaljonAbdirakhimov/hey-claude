@@ -52,7 +52,9 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   in the middle of a sentence is ignored on purpose.
 - The summary is spoken in the voice you pick (below); one that is not installed
   falls back to the system's default voice.
-- Summaries of long answers are written by Claude Haiku, which uses your Claude plan.
+- Summaries are written by Claude Haiku, which uses your Claude plan. Each one gives the
+  result first, then the detail that matters, then what happens next: a question Claude
+  asked you is read word for word. One-line answers are read as they are.
 
 ## Choose the voice
 
