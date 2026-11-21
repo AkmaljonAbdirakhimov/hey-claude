@@ -221,6 +221,13 @@ export const register: Register = (on, options) => {
     // Ava saying "Hey Claude" would wake the mic and send her own words back.
     summary = summary.replace(/\b(hey|hi|okay|ok|hello)\W+claude\b/gi, 'the wake phrase')
 
+    // You are speaking a new request: talking over it would put the summary's words into
+    // your request. Show the summary in the bar instead of reading it out.
+    if ((await update($, mic, m => m)).mode === 'awake') {
+      await update($, said, () => ({ text: summary, speaking: false }))
+      return out
+    }
+
     hush()
     const ctl = new AbortController()
     speaking = ctl
