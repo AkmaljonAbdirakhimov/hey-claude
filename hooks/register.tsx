@@ -67,6 +67,8 @@ export const register: Register = (on, options) => {
   let claim: () => Promise<void> = async () => {}
   // Tells the listener to drop the request being spoken.
   let cancel: () => Promise<void> = async () => {}
+  // The on/off switch: off closes the mic in every chat until it is turned on again.
+  let switchOff: (off: boolean) => Promise<void> = async () => {}
   const hush = () => {
     speaking?.abort()
     speaking = undefined
@@ -83,13 +85,18 @@ export const register: Register = (on, options) => {
     const root = $.plugin.root
     const owner = `${root}/mic.owner`
     const id = await $.session.id()
-    const files = ['--log', `${root}/listener.log`, '--speaking', `${root}/speaking`, '--owner', owner, '--id', id, '--cancel', `${root}/cancel`]
+    const files = ['--log', `${root}/listener.log`, '--speaking', `${root}/speaking`, '--owner', owner, '--id', id, '--cancel', `${root}/cancel`, '--paused', `${root}/paused`]
     // Same protocol on both: the Swift binary on macOS, a PowerShell script on Windows.
     const argv = isWindows
       ? ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', `${root}/listener/windows.ps1`,
          ...files.map(a => a.replace(/^--(\w)/, (_, c: string) => '-' + c.toUpperCase()))]
       : [`${root}/bin/hey-claude`, ...files]
     claim = () => $.fs.write(owner, id).catch(() => {})
+    switchOff = async off => {
+      await $.fs.write(`${root}/paused`, off ? '1' : '0').catch(() => {})
+      // The listener answers within a second; show "off" at once.
+      if (off) await update($, mic, () => ({ mode: 'paused', heard: '' }))
+    }
     cancel = async () => {
       await $.fs.write(`${root}/cancel`, String(Date.now())).catch(() => {})
       await update($, mic, m => (m.mode === 'awake' ? READY : m))
@@ -122,6 +129,7 @@ export const register: Register = (on, options) => {
               if (line === 'ready' || line === 'idle') await update($, mic, m => (m.mode === 'sending' || m.mode === 'sent' ? m : READY))
               else if (line === 'wake') await update($, mic, () => ({ mode: 'awake', heard: '' }))
               else if (line === 'cancelled') await update($, mic, () => READY)
+              else if (line === 'paused') await update($, mic, () => ({ mode: 'paused', heard: '' }))
               else if (line === 'busy') await update($, mic, () => ({ mode: 'busy', heard: '' }))
               else if (line.startsWith('heard\t')) await update($, mic, () => ({ mode: 'awake', heard: line.slice(6) }))
               else if (line.startsWith('miss\t')) await update($, mic, (m): Mic => (m.mode === 'ready' ? { ...READY, heard: line.slice(5) } : m))
@@ -160,21 +168,21 @@ export const register: Register = (on, options) => {
     if (state.mode === 'off' || e.props.hasSurvey) return next(e)
     const last = await read($, said)
     const { Box, Text, Button } = $.ui.resolve(e)
-    // Right end of the status row: the settings icon opens the voice picker.
+    // Right end of the idle bar only: the settings icon opens the settings pane.
     const gear = (
-      <Button key="voice" onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 12 })}>
+      <Button key="voice" onPress={() => void $.ui.open({ id: VOICES, title: 'hey-claude: voice', focus: true, closeOnEscape: true, rows: 16 })}>
         {/* The emoji form of the gear: the text glyph draws tiny, and a Button ignores its Text's size. */}
         <Text size="title">{'⚙\uFE0F'}</Text>
       </Button>
     )
-    // The status and its controls on the left, the Voice button at the right end; spacing
-    // comes from the Boxes' gaps, not from spaces in the text.
-    const row = (...items: RenderChildren[]) => (
+    // The status and its controls on the left, the settings icon (idle bar only) at the
+    // right end; spacing comes from the Boxes' gaps, not from spaces in the text.
+    const row = (items: RenderChildren[], end?: RenderChildren) => (
       <Box justifyContent="space-between" alignItems="center" columnGap="lg">
         <Box alignItems="center" columnGap="md" flexShrink={1} flexWrap="wrap">
           {items}
         </Box>
-        {gear}
+        {end}
       </Box>
     )
     // Status on its own row, the words under it, so long text wraps instead of squeezing the label.
@@ -184,37 +192,50 @@ export const register: Register = (on, options) => {
         {words ? <Text maxLines={10}>{words}</Text> : null}
       </Box>
     )
-    const status = (label: ReturnType<typeof Text>, note?: string) => row(label, note ? <Text dimColor>{note}</Text> : null)
+    const status = (label: ReturnType<typeof Text>, note?: string, end?: RenderChildren) =>
+      row([label, note ? <Text dimColor key="note">{note}</Text> : null], end)
     // While listening, the newest words matter: keep the end of a long request.
     const tail = (t: string) => (t.length > 1200 ? '…' + t.slice(-1200) : t)
     switch (state.mode) {
       case 'sent':
-        return bar(status(<Text color="claude" bold>{'✓ Sent'}</Text>, 'Claude is replying…'), state.heard)
+        return bar(status(<Text color="claude" bold key="label">{'✓ Sent'}</Text>, 'Claude is replying…'), state.heard)
       case 'sending':
-        return bar(status(<Text color="claude" bold>{'↑ Sending to Claude…'}</Text>), state.heard)
+        return bar(status(<Text color="claude" bold key="label">{'↑ Sending to Claude…'}</Text>), state.heard)
+      case 'paused':
+        return bar(
+          row([
+            <Text dimColor key="label">{'○ Mic off'}</Text>,
+            <Button key="resume" label="Turn on" onPress={() => switchOff(false)} />,
+          ]),
+        )
       case 'busy':
         return bar(
-          row(
-            <Text dimColor>{'○ Mic is in another chat'}</Text>,
+          row([
+            <Text dimColor key="label">{'○ Mic is in another chat'}</Text>,
             <Button key="claim" label="Use mic here" onPress={() => claim()} />,
-          ),
+          ]),
         )
       case 'awake':
         return bar(
-          row(
-            <Text color="error" bold>{'● Listening…'}</Text>,
+          row([
+            <Text color="error" bold key="label">{'● Listening…'}</Text>,
             <Button key="cancel" label="Cancel" onPress={() => cancel()} />,
-            <Text dimColor>{state.heard ? 'or say "cancel"' : 'speak now'}</Text>,
-          ),
+            <Text dimColor key="hint">{state.heard ? 'or say "cancel"' : 'speak now'}</Text>,
+          ]),
           state.heard ? tail(state.heard) : undefined,
         )
       default:
         if (last.text)
           return bar(
-            status(<Text color="claude" bold>{last.speaking ? '▶ Claude is saying' : 'Claude said'}</Text>, 'say "Hey Claude" to reply'),
+            // The settings icon only once Claude is done speaking: the bar is idle again.
+            status(
+              <Text color="claude" bold key="label">{last.speaking ? '▶ Claude is saying' : 'Claude said'}</Text>,
+              'say "Hey Claude" to reply',
+              last.speaking ? undefined : gear,
+            ),
             last.text,
           )
-        return bar(status(<Text dimColor>{'○ Mic on: say "Hey Claude"'}</Text>, state.heard ? `last heard "${tail(state.heard)}"` : undefined))
+        return bar(status(<Text dimColor key="label">{'○ Mic on: say "Hey Claude"'}</Text>, state.heard ? `last heard "${tail(state.heard)}"` : undefined, gear))
     }
   })
 
@@ -222,6 +243,7 @@ export const register: Register = (on, options) => {
   // and plays a short sample.
   on('ui.render', { component: 'Pane', requestId: VOICES }, async ($, e) => {
     const { Box, Text, Select, Button } = $.ui.resolve(e)
+    const isOff = (await read($, mic)).mode === 'paused'
     voices ??= $.process
       .run(isWindows ? ps(SYNTH + '$s.GetInstalledVoices() | % { $_.VoiceInfo.Name + "`t" + $_.VoiceInfo.Culture.Name }') : ['say', '-v', '?'])
       .then(r => parseVoices(r.stdout), () => [])
@@ -236,7 +258,19 @@ export const register: Register = (on, options) => {
       ? 'More voices: Settings > Time & language > Speech > Manage voices.'
       : 'More voices: System Settings > Accessibility > Spoken Content > System Voice > Manage Voices.'
     return (
-      <Box flexDirection="column" padding="md" rowGap="md">
+      <Box flexDirection="column" padding="md" rowGap="lg">
+        <Box justifyContent="space-between" alignItems="center" columnGap="lg">
+          <Box flexDirection="column" rowGap="xs" flexShrink={1}>
+            <Text bold>{'Listen for "Hey Claude"'}</Text>
+            <Text dimColor>{isOff ? 'Off: the mic is closed in every chat.' : 'On: the mic listens in the chat you use.'}</Text>
+          </Box>
+          <Button
+            key="listen"
+            label={isOff ? 'Turn on' : 'Turn off'}
+            variant={isOff ? 'primary' : 'secondary'}
+            onPress={() => switchOff(!isOff)}
+          />
+        </Box>
         <Box flexDirection="column" rowGap="xs">
           <Text bold>{'Voice for spoken answers'}</Text>
           <Text dimColor>{'Pick a voice to hear it. The choice is saved for every chat.'}</Text>

@@ -1,7 +1,7 @@
 export type Mic = {
   /** off: listener not running; busy: another chat has the mic; ready: waiting for "Hey Claude"; awake: taking a request;
    *  sending: request handed to Claude, not stored yet; sent: stored, reply not streaming yet. */
-  mode: 'off' | 'busy' | 'ready' | 'awake' | 'sending' | 'sent'
+  mode: 'off' | 'paused' | 'busy' | 'ready' | 'awake' | 'sending' | 'sent'
   /** The request heard so far (awake), being sent (sending), or the last words
    *  heard without the wake phrase (ready), so a miss shows what was heard. */
   heard: string

@@ -202,7 +202,7 @@ final class Listener {
     }
 
     /// Lets go of the mic (another chat has it).
-    func stop() {
+    func stop(_ line: String = "busy") {
         if !isRunning { return }
         isRunning = false
         generation += 1
@@ -215,7 +215,7 @@ final class Listener {
         lastText = ""
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
-        emit("busy")
+        emit(line)
         traceOn = false
     }
 
@@ -417,6 +417,12 @@ AVCaptureDevice.requestAccess(for: .audio) { micOK in
 let ownerPath = arg("--owner", URL(fileURLWithPath: Bundle.main.executablePath ?? args[0])
     .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("mic.owner").path)
 let myID = arg("--id", "\(getpid())")
+// The bar's on/off switch: "1" in this file closes the mic in every chat.
+let pausePath = arg("--paused", "")
+func isPaused() -> Bool {
+    !pausePath.isEmpty && (try? String(contentsOfFile: pausePath, encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines) == "1"
+}
 func followOwner() {
     let check = {
         var mine = true
@@ -432,8 +438,22 @@ func followOwner() {
             mine = owner == myID
             if mine { try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: ownerPath) }
         }
+        // The switch moved: say the state again, even if a quick off-and-on left it the same,
+        // so the bar never sits on "Mic off" while the mic is on.
+        let switched = (try? FileManager.default.attributesOfItem(atPath: pausePath)[.modificationDate] as? Date) ?? .distantPast
+        let changed = switched != pauseSeen
+        if changed { pauseSeen = switched; sentPaused = false; sentBusy = false }
+        // Switched off: let go of the mic, but keep the owner file fresh so this chat keeps it.
+        if isPaused() {
+            if listener.isRunning { listener.stop("paused") } else if !sentPaused { emit("paused") }
+            sentPaused = true
+            sentBusy = false
+            return
+        }
+        sentPaused = false
         if mine {
-            do { try listener.start() } catch { fail("audio input failed: \(error)") }
+            if listener.isRunning { if changed { emit("ready") } }
+            else { do { try listener.start() } catch { fail("audio input failed: \(error)") } }
         } else if listener.isRunning {
             listener.stop()
         } else if !sentBusy {
@@ -445,6 +465,8 @@ func followOwner() {
     Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in check() }
 }
 var sentBusy = false
+var sentPaused = false
+var pauseSeen = Date.distantPast
 
 // The Cancel button: the plugin touches this file and the request being spoken is dropped.
 let cancelPath = arg("--cancel", "")

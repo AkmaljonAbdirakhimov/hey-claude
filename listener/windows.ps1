@@ -10,6 +10,7 @@ param(
     [string]$Owner = '',
     [string]$Id = '',
     [string]$Cancel = '',
+    [string]$Paused = '',          # "1" in this file: the bar's switch is off
     [string]$Locale = 'en-US',
     [double]$Silence = 4,          # seconds of quiet that send the request
     [double]$FirstWord = 8,        # seconds to start talking after the wake phrase
@@ -108,26 +109,29 @@ $script:command = ''
 $script:lastHeard = ''
 $script:since = [datetime]::UtcNow
 
-# The engine starts once and keeps running: restarting it right after a cancel throws.
-# A chat without the mic drops what it hears.
+# The engine keeps running while another chat has the mic (that chat drops what it hears),
+# and stops only when the bar's switch is off.
 $script:engineOn = $false
 function Start-Listening {
     if ($script:running) { return }
     if ($Log) { try { [IO.File]::WriteAllText($Log, '') } catch {} }
     $script:tracing = $true
     if (-not $script:engineOn) {
-        $engine.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
+        # Right after a cancel the engine may still be stopping: try again next second.
+        try { $engine.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple) } catch { return }
         $script:engineOn = $true
     }
     $script:running = $true
     $script:sentBusy = $false
     Emit 'ready'
 }
-function Stop-Listening {
+function Stop-Listening([string]$line = 'busy') {
     if (-not $script:running) { return }
     $script:running = $false
     $script:awake = $false
-    Emit 'busy'
+    # Switched off: close the mic for real. (Another chat taking it leaves the engine on.)
+    if ($line -eq 'paused') { try { $engine.RecognizeAsyncCancel() } catch {}; $script:engineOn = $false }
+    Emit $line
     $script:tracing = $false
 }
 function Wake([string]$rest) {
@@ -183,6 +187,7 @@ function On-Hearing($result) {
 
 # --- the mic follows the chat in use (owner file), like main.swift -------------------
 $script:sentBusy = $false
+$script:pauseSeen = [datetime]::MinValue
 function Follow-Owner {
     $mine = $true
     if ($Owner) {
@@ -197,7 +202,19 @@ function Follow-Owner {
         $mine = $who -eq $Id
         if ($mine) { (Get-Item -LiteralPath $Owner).LastWriteTimeUtc = [datetime]::UtcNow }
     }
-    if ($mine) { Start-Listening }
+    # The switch moved: say the state again, even if a quick off-and-on left it the same.
+    $switched = MTime $Paused
+    $changed = $switched -ne $script:pauseSeen
+    if ($changed) { $script:pauseSeen = $switched; $script:sentPaused = $false; $script:sentBusy = $false }
+    # Switched off: drop what is heard, but keep the owner file fresh so this chat keeps the mic.
+    if ($Paused -and (Test-Path -LiteralPath $Paused) -and ((Get-Content -LiteralPath $Paused -Raw) + '').Trim() -eq '1') {
+        if ($script:running) { Stop-Listening 'paused' } elseif (-not $script:sentPaused) { Emit 'paused' }
+        $script:sentPaused = $true
+        $script:sentBusy = $false
+        return
+    }
+    $script:sentPaused = $false
+    if ($mine) { if ($script:running) { if ($changed) { Emit 'ready' } } else { Start-Listening } }
     elseif ($script:running) { Stop-Listening }
     elseif (-not $script:sentBusy) { $script:sentBusy = $true; Emit 'busy' }
 }
