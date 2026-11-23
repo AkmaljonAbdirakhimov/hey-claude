@@ -39,8 +39,8 @@ access. Click **Allow** for both. Nothing needs to be built or configured.
   **"never mind"**, and nothing is sent.
 - Say **"Hey Claude, stop"**, or type a prompt, to stop the speech.
 - Don't want it listening for a while? Click **⚙️**, then **Turn off**. The mic closes in
-  every chat and the bar shows `○ Mic off` with a **Turn on** button. Summaries are
-  still read aloud.
+  every chat, summaries are no longer read aloud, and the bar shows `○ Mic off` with a
+  **Turn on** button.
 - With several chats open, one has the mic: the last chat you typed in. Other chats
   show **Use mic here** to take it.
 

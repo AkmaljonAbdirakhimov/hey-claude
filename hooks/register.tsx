@@ -95,7 +95,11 @@ export const register: Register = (on, options) => {
     switchOff = async off => {
       await $.fs.write(`${root}/paused`, off ? '1' : '0').catch(() => {})
       // The listener answers within a second; show "off" at once.
-      if (off) await update($, mic, () => ({ mode: 'paused', heard: '' }))
+      if (off) {
+        hush()
+        await update($, said, s => ({ ...s, speaking: false }))
+        await update($, mic, () => ({ mode: 'paused', heard: '' }))
+      }
     }
     cancel = async () => {
       await $.fs.write(`${root}/cancel`, String(Date.now())).catch(() => {})
@@ -262,7 +266,7 @@ export const register: Register = (on, options) => {
         <Box justifyContent="space-between" alignItems="center" columnGap="lg">
           <Box flexDirection="column" rowGap="xs" flexShrink={1}>
             <Text bold>{'Listen for "Hey Claude"'}</Text>
-            <Text dimColor>{isOff ? 'Off: the mic is closed in every chat.' : 'On: the mic listens in the chat you use.'}</Text>
+            <Text dimColor>{isOff ? 'Off: no listening and no spoken summaries, in every chat.' : 'On: the mic listens in the chat you use, and summaries are read aloud.'}</Text>
           </Box>
           <Button
             key="listen"
@@ -334,6 +338,8 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined || e.reason !== 'answer') return out
     const answer = plain(e.answer)
     if (!answer) return out
+    // Switched off: no summary, no voice (and no Haiku call).
+    if ((await read($, mic)).mode === 'paused') return out
 
     // A one-line answer ("It's 3 PM.") is read as it is.
     let summary = answer
